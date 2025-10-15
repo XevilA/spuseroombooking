@@ -1,6 +1,7 @@
 // ========================================
 // ROOM BOOKING SYSTEM - SPU ENTREPRENEURSHIP
 // By Arsenal - School of Entrepreneurship SPU
+// WITH ADMIN APPROVAL SYSTEM
 // ========================================
 
 // ตั้งค่าระบบ
@@ -16,7 +17,19 @@ const CONFIG = {
   
   TIME_SLOTS: generateTimeSlots('09:00', '18:30', 30),
   
-  ADMIN_EMAILS: ['admin@spu.ac.th'] // เปลี่ยนเป็น email ของแอดมิน
+  ADMIN_EMAILS: ['admin@spu.ac.th', 'arsenal@spu.ac.th'], // เปลี่ยนเป็น email ของแอดมิน
+  
+  REQUIRE_APPROVAL: true, // true = ต้องอนุมัติ, false = จองได้เลย
+  
+  AUTO_APPROVE_DURATION: 60 // นาที - ถ้าจองน้อยกว่านี้ อนุมัติอัตโนมัติ (0 = ไม่มี auto approve)
+};
+
+// Booking Status
+const BOOKING_STATUS = {
+  PENDING: 'รออนุมัติ',
+  APPROVED: 'อนุมัติแล้ว',
+  REJECTED: 'ปฏิเสธ',
+  CANCELLED: 'ยกเลิก'
 };
 
 // ========================================
@@ -24,6 +37,15 @@ const CONFIG = {
 // ========================================
 
 function doGet(e) {
+  const page = e.parameter.page || 'user';
+  
+  if (page === 'admin') {
+    return HtmlService.createHtmlOutputFromFile('Admin')
+      .setTitle('Admin Panel - ระบบจองห้องประชุม SPU')
+      .setFaviconUrl('https://img.icons8.com/color/48/000000/admin-settings-male.png')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+  
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('ระบบจองห้องประชุม - School of Entrepreneurship SPU')
     .setFaviconUrl('https://img.icons8.com/color/48/000000/calendar--v1.png')
@@ -59,16 +81,27 @@ function getOrCreateSheet() {
   
   if (!sheet) {
     sheet = ss.insertSheet(CONFIG.SHEET_NAME);
-    sheet.getRange('A1:I1').setValues([[
+    sheet.getRange('A1:L1').setValues([[
       'ID', 'Room ID', 'Room Name', 'Date', 'Start Time', 'End Time',
-      'Booker Name', 'Booker Email', 'Created At'
+      'Booker Name', 'Booker Email', 'Status', 'Approved By', 'Approved At', 'Created At'
     ]]);
-    sheet.getRange('A1:I1').setFontWeight('bold').setBackground('#dc143c').setFontColor('#ffffff');
+    sheet.getRange('A1:L1').setFontWeight('bold').setBackground('#dc143c').setFontColor('#ffffff');
     sheet.setFrozenRows(1);
-    sheet.setColumnWidths(1, 9, 150);
+    sheet.setColumnWidths(1, 12, 130);
   }
   
   return sheet;
+}
+
+function isAdmin(email) {
+  return CONFIG.ADMIN_EMAILS.includes(email);
+}
+
+function shouldAutoApprove(startTime, endTime) {
+  if (CONFIG.AUTO_APPROVE_DURATION === 0) return false;
+  
+  const duration = timeToMinutes(endTime) - timeToMinutes(startTime);
+  return duration <= CONFIG.AUTO_APPROVE_DURATION;
 }
 
 // ========================================
@@ -78,29 +111,37 @@ function getOrCreateSheet() {
 function getRoomsAndSlots() {
   return {
     rooms: CONFIG.ROOMS,
-    timeSlots: CONFIG.TIME_SLOTS
+    timeSlots: CONFIG.TIME_SLOTS,
+    requireApproval: CONFIG.REQUIRE_APPROVAL
   };
 }
 
-function getBookings(date) {
+function getBookings(date, statusFilter = null) {
   const sheet = getOrCreateSheet();
   const data = sheet.getDataRange().getValues();
   const bookings = [];
   
   for (let i = 1; i < data.length; i++) {
-    if (data[i][3] === date) {
-      bookings.push({
-        id: data[i][0],
-        roomId: data[i][1],
-        roomName: data[i][2],
-        date: data[i][3],
-        startTime: data[i][4],
-        endTime: data[i][5],
-        bookerName: data[i][6],
-        bookerEmail: data[i][7],
-        createdAt: data[i][8]
-      });
-    }
+    // กรองตามวันที่
+    if (date && data[i][3] !== date) continue;
+    
+    // กรองตามสถานะ (ถ้ามีการระบุ)
+    if (statusFilter && data[i][8] !== statusFilter) continue;
+    
+    bookings.push({
+      id: data[i][0],
+      roomId: data[i][1],
+      roomName: data[i][2],
+      date: data[i][3],
+      startTime: data[i][4],
+      endTime: data[i][5],
+      bookerName: data[i][6],
+      bookerEmail: data[i][7],
+      status: data[i][8],
+      approvedBy: data[i][9],
+      approvedAt: data[i][10],
+      createdAt: data[i][11]
+    });
   }
   
   return bookings;
@@ -108,12 +149,11 @@ function getBookings(date) {
 
 function createBooking(bookingData) {
   try {
-    // ตรวจสอบว่ามีการจองในช่วงเวลานี้แล้วหรือไม่
-    const existingBookings = getBookings(bookingData.date);
+    // ตรวจสอบว่ามีการจองที่อนุมัติแล้วในช่วงเวลานี้หรือไม่
+    const existingBookings = getBookings(bookingData.date, BOOKING_STATUS.APPROVED);
     const isBooked = existingBookings.some(b => {
       if (b.roomId !== bookingData.roomId) return false;
       
-      // ตรวจสอบว่าช่วงเวลาทับซ้อนกันหรือไม่
       const newStart = timeToMinutes(bookingData.startTime);
       const newEnd = timeToMinutes(bookingData.endTime);
       const existingStart = timeToMinutes(b.startTime);
@@ -125,8 +165,20 @@ function createBooking(bookingData) {
     if (isBooked) {
       return { 
         success: false, 
-        message: 'ช่วงเวลานี้มีการจองแล้ว กรุณาเลือกช่วงเวลาอื่น' 
+        message: 'ช่วงเวลานี้มีการจองที่อนุมัติแล้ว กรุณาเลือกช่วงเวลาอื่น' 
       };
+    }
+    
+    // กำหนดสถานะเริ่มต้น
+    let status = BOOKING_STATUS.PENDING;
+    let approvedBy = '';
+    let approvedAt = '';
+    
+    // ตรวจสอบว่าควร Auto Approve หรือไม่
+    if (!CONFIG.REQUIRE_APPROVAL || shouldAutoApprove(bookingData.startTime, bookingData.endTime)) {
+      status = BOOKING_STATUS.APPROVED;
+      approvedBy = 'System (Auto)';
+      approvedAt = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
     }
     
     // บันทึกการจอง
@@ -145,20 +197,34 @@ function createBooking(bookingData) {
       bookingData.endTime,
       bookingData.bookerName,
       bookingData.bookerEmail,
+      status,
+      approvedBy,
+      approvedAt,
       timestamp
     ]);
     
-    // เพิ่มลงใน Google Calendar
-    const calendarEventId = addToCalendar(bookingData, room.name);
+    // ถ้าอนุมัติแล้ว ให้เพิ่มลง Calendar
+    if (status === BOOKING_STATUS.APPROVED) {
+      addToCalendar(bookingData, room.name, id);
+    }
     
-    // ส่งการแจ้งเตือนผ่าน LINE
-    sendLineNotification(bookingData, room.name);
+    // ส่งการแจ้งเตือน
+    if (status === BOOKING_STATUS.PENDING) {
+      sendLineNotificationToAdmin(bookingData, room.name, id);
+      sendLineNotificationToUser(bookingData, room.name, 'pending');
+    } else {
+      sendLineNotificationToUser(bookingData, room.name, 'approved');
+    }
+    
+    const message = status === BOOKING_STATUS.APPROVED 
+      ? 'จองห้องสำเร็จและอนุมัติแล้ว! ✅' 
+      : 'ส่งคำขอจองสำเร็จ! รอการอนุมัติจากแอดมิน ⏳';
     
     return { 
       success: true, 
-      message: 'จองห้องสำเร็จ! ✅',
+      message: message,
       bookingId: id,
-      calendarEventId: calendarEventId
+      status: status
     };
     
   } catch (error) {
@@ -183,16 +249,18 @@ function cancelBooking(bookingId, userEmail) {
     for (let i = 1; i < data.length; i++) {
       if (data[i][0] === bookingId) {
         // ตรวจสอบว่าเป็นเจ้าของการจองหรือแอดมิน
-        if (data[i][7] === userEmail || CONFIG.ADMIN_EMAILS.includes(userEmail)) {
+        if (data[i][7] === userEmail || isAdmin(userEmail)) {
           const bookingInfo = {
             roomName: data[i][2],
             date: data[i][3],
             startTime: data[i][4],
             endTime: data[i][5],
-            bookerName: data[i][6]
+            bookerName: data[i][6],
+            status: data[i][8]
           };
           
-          sheet.deleteRow(i + 1);
+          // อัพเดทสถานะเป็น ยกเลิก แทนการลบ
+          sheet.getRange(i + 1, 9).setValue(BOOKING_STATUS.CANCELLED);
           
           // ส่งการแจ้งเตือนการยกเลิก
           sendLineCancellationNotification(bookingInfo);
@@ -225,10 +293,269 @@ function cancelBooking(bookingId, userEmail) {
 }
 
 // ========================================
+// ADMIN FUNCTIONS
+// ========================================
+
+function verifyAdmin(email) {
+  return {
+    isAdmin: isAdmin(email),
+    email: email
+  };
+}
+
+function getPendingBookings() {
+  const allBookings = getBookings(null, BOOKING_STATUS.PENDING);
+  
+  // เรียงตามวันที่และเวลา
+  allBookings.sort((a, b) => {
+    const dateCompare = new Date(a.date) - new Date(b.date);
+    if (dateCompare !== 0) return dateCompare;
+    return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+  });
+  
+  return allBookings;
+}
+
+function getAllBookingsForAdmin() {
+  const sheet = getOrCreateSheet();
+  const data = sheet.getDataRange().getValues();
+  const bookings = [];
+  
+  for (let i = 1; i < data.length; i++) {
+    // ไม่แสดงรายการที่ยกเลิก
+    if (data[i][8] === BOOKING_STATUS.CANCELLED) continue;
+    
+    bookings.push({
+      id: data[i][0],
+      roomId: data[i][1],
+      roomName: data[i][2],
+      date: data[i][3],
+      startTime: data[i][4],
+      endTime: data[i][5],
+      bookerName: data[i][6],
+      bookerEmail: data[i][7],
+      status: data[i][8],
+      approvedBy: data[i][9],
+      approvedAt: data[i][10],
+      createdAt: data[i][11]
+    });
+  }
+  
+  // เรียงตามวันที่ล่าสุด
+  bookings.sort((a, b) => {
+    const dateCompare = new Date(b.date) - new Date(a.date);
+    if (dateCompare !== 0) return dateCompare;
+    return timeToMinutes(b.startTime) - timeToMinutes(a.startTime);
+  });
+  
+  return bookings;
+}
+
+function approveBooking(bookingId, adminEmail) {
+  try {
+    if (!isAdmin(adminEmail)) {
+      return {
+        success: false,
+        message: 'คุณไม่มีสิทธิ์อนุมัติการจอง'
+      };
+    }
+    
+    const sheet = getOrCreateSheet();
+    const data = sheet.getDataRange().getValues();
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === bookingId) {
+        // ตรวจสอบสถานะปัจจุบัน
+        if (data[i][8] !== BOOKING_STATUS.PENDING) {
+          return {
+            success: false,
+            message: 'ไม่สามารถอนุมัติได้ เนื่องจากสถานะไม่ใช่ "รออนุมัติ"'
+          };
+        }
+        
+        // ตรวจสอบว่ามีการจองที่อนุมัติแล้วในช่วงเวลานี้หรือไม่
+        const bookingData = {
+          roomId: data[i][1],
+          date: data[i][3],
+          startTime: data[i][4],
+          endTime: data[i][5]
+        };
+        
+        const existingBookings = getBookings(bookingData.date, BOOKING_STATUS.APPROVED);
+        const isBooked = existingBookings.some(b => {
+          if (b.roomId !== bookingData.roomId || b.id === bookingId) return false;
+          
+          const newStart = timeToMinutes(bookingData.startTime);
+          const newEnd = timeToMinutes(bookingData.endTime);
+          const existingStart = timeToMinutes(b.startTime);
+          const existingEnd = timeToMinutes(b.endTime);
+          
+          return (newStart < existingEnd && newEnd > existingStart);
+        });
+        
+        if (isBooked) {
+          return {
+            success: false,
+            message: 'ไม่สามารถอนุมัติได้ เนื่องจากมีการจองอื่นที่อนุมัติแล้วในช่วงเวลานี้'
+          };
+        }
+        
+        // อัพเดทสถานะ
+        const timestamp = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
+        sheet.getRange(i + 1, 9).setValue(BOOKING_STATUS.APPROVED);
+        sheet.getRange(i + 1, 10).setValue(adminEmail);
+        sheet.getRange(i + 1, 11).setValue(timestamp);
+        
+        // เพิ่มลง Google Calendar
+        const room = CONFIG.ROOMS.find(r => r.id === data[i][1]);
+        addToCalendar({
+          roomId: data[i][1],
+          date: data[i][3],
+          startTime: data[i][4],
+          endTime: data[i][5],
+          bookerName: data[i][6],
+          bookerEmail: data[i][7]
+        }, room.name, bookingId);
+        
+        // ส่งการแจ้งเตือน
+        sendLineApprovalNotification({
+          roomName: data[i][2],
+          date: data[i][3],
+          startTime: data[i][4],
+          endTime: data[i][5],
+          bookerName: data[i][6],
+          bookerEmail: data[i][7],
+          approvedBy: adminEmail
+        });
+        
+        return {
+          success: true,
+          message: 'อนุมัติการจองสำเร็จ'
+        };
+      }
+    }
+    
+    return {
+      success: false,
+      message: 'ไม่พบการจองนี้'
+    };
+    
+  } catch (error) {
+    Logger.log('Error approving booking: ' + error);
+    return {
+      success: false,
+      message: 'เกิดข้อผิดพลาด: ' + error.toString()
+    };
+  }
+}
+
+function rejectBooking(bookingId, adminEmail, reason) {
+  try {
+    if (!isAdmin(adminEmail)) {
+      return {
+        success: false,
+        message: 'คุณไม่มีสิทธิ์ปฏิเสธการจอง'
+      };
+    }
+    
+    const sheet = getOrCreateSheet();
+    const data = sheet.getDataRange().getValues();
+    
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === bookingId) {
+        // ตรวจสอบสถานะปัจจุบัน
+        if (data[i][8] !== BOOKING_STATUS.PENDING) {
+          return {
+            success: false,
+            message: 'ไม่สามารถปฏิเสธได้ เนื่องจากสถานะไม่ใช่ "รออนุมัติ"'
+          };
+        }
+        
+        // อัพเดทสถานะ
+        const timestamp = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
+        sheet.getRange(i + 1, 9).setValue(BOOKING_STATUS.REJECTED);
+        sheet.getRange(i + 1, 10).setValue(adminEmail);
+        sheet.getRange(i + 1, 11).setValue(timestamp);
+        
+        // ส่งการแจ้งเตือน
+        sendLineRejectionNotification({
+          roomName: data[i][2],
+          date: data[i][3],
+          startTime: data[i][4],
+          endTime: data[i][5],
+          bookerName: data[i][6],
+          bookerEmail: data[i][7],
+          rejectedBy: adminEmail,
+          reason: reason
+        });
+        
+        return {
+          success: true,
+          message: 'ปฏิเสธการจองสำเร็จ'
+        };
+      }
+    }
+    
+    return {
+      success: false,
+      message: 'ไม่พบการจองนี้'
+    };
+    
+  } catch (error) {
+    Logger.log('Error rejecting booking: ' + error);
+    return {
+      success: false,
+      message: 'เกิดข้อผิดพลาด: ' + error.toString()
+    };
+  }
+}
+
+function getBookingStats() {
+  const sheet = getOrCreateSheet();
+  const data = sheet.getDataRange().getValues();
+  
+  const stats = {
+    total: 0,
+    pending: 0,
+    approved: 0,
+    rejected: 0,
+    cancelled: 0,
+    todayBookings: 0,
+    upcomingBookings: 0
+  };
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = Utilities.formatDate(today, 'Asia/Bangkok', 'yyyy-MM-dd');
+  
+  for (let i = 1; i < data.length; i++) {
+    stats.total++;
+    
+    const status = data[i][8];
+    const bookingDate = data[i][3];
+    
+    if (status === BOOKING_STATUS.PENDING) stats.pending++;
+    if (status === BOOKING_STATUS.APPROVED) stats.approved++;
+    if (status === BOOKING_STATUS.REJECTED) stats.rejected++;
+    if (status === BOOKING_STATUS.CANCELLED) stats.cancelled++;
+    
+    if (bookingDate === todayStr && status === BOOKING_STATUS.APPROVED) {
+      stats.todayBookings++;
+    }
+    
+    if (new Date(bookingDate) >= today && status === BOOKING_STATUS.APPROVED) {
+      stats.upcomingBookings++;
+    }
+  }
+  
+  return stats;
+}
+
+// ========================================
 // GOOGLE CALENDAR INTEGRATION
 // ========================================
 
-function addToCalendar(bookingData, roomName) {
+function addToCalendar(bookingData, roomName, bookingId) {
   try {
     const calendar = CalendarApp.getCalendarById(CONFIG.CALENDAR_ID);
     if (!calendar) {
@@ -248,7 +575,7 @@ function addToCalendar(bookingData, roomName) {
       startTime,
       endTime,
       {
-        description: `ผู้จอง: ${bookingData.bookerName}\nอีเมล: ${bookingData.bookerEmail}\n\nจองผ่าน School of Entrepreneurship SPU Booking System`,
+        description: `ผู้จอง: ${bookingData.bookerName}\nอีเมล: ${bookingData.bookerEmail}\nBooking ID: ${bookingId}\n\nจองผ่าน School of Entrepreneurship SPU Booking System`,
         location: roomName,
         guests: bookingData.bookerEmail,
         sendInvites: true
@@ -268,7 +595,7 @@ function addToCalendar(bookingData, roomName) {
 // LINE MESSAGING API INTEGRATION
 // ========================================
 
-function sendLineNotification(bookingData, roomName) {
+function sendLineNotificationToAdmin(bookingData, roomName, bookingId) {
   try {
     const token = CONFIG.LINE_CHANNEL_ACCESS_TOKEN;
     
@@ -278,7 +605,7 @@ function sendLineNotification(bookingData, roomName) {
     }
     
     const message = `
-🎉 มีการจองห้องใหม่!
+🔔 มีคำขอจองห้องใหม่!
 
 📍 ห้อง: ${roomName}
 📅 วันที่: ${formatThaiDate(bookingData.date)}
@@ -286,36 +613,134 @@ function sendLineNotification(bookingData, roomName) {
 👤 ผู้จอง: ${bookingData.bookerName}
 📧 อีเมล: ${bookingData.bookerEmail}
 
+⏳ สถานะ: รออนุมัติ
+
+กรุณาเข้าไปอนุมัติที่:
+Admin Panel
+
 ---
 School of Entrepreneurship SPU
 By Arsenal 🎯
     `.trim();
     
-    // Broadcast message to all followers
-    const url = 'https://api.line.me/v2/bot/message/broadcast';
-    
-    const payload = {
-      messages: [{
-        type: 'text',
-        text: message
-      }]
-    };
-    
-    const options = {
-      method: 'post',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + token
-      },
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    };
-    
-    const response = UrlFetchApp.fetch(url, options);
-    Logger.log('LINE notification sent: ' + response.getContentText());
+    sendLineMessage(message);
     
   } catch (error) {
-    Logger.log('Error sending LINE notification: ' + error);
+    Logger.log('Error sending LINE notification to admin: ' + error);
+  }
+}
+
+function sendLineNotificationToUser(bookingData, roomName, type) {
+  try {
+    const token = CONFIG.LINE_CHANNEL_ACCESS_TOKEN;
+    
+    if (token === 'YOUR_LINE_CHANNEL_ACCESS_TOKEN') {
+      return;
+    }
+    
+    let message = '';
+    
+    if (type === 'pending') {
+      message = `
+⏳ ส่งคำขอจองห้องสำเร็จ!
+
+📍 ห้อง: ${roomName}
+📅 วันที่: ${formatThaiDate(bookingData.date)}
+⏰ เวลา: ${bookingData.startTime} - ${bookingData.endTime}
+👤 ผู้จอง: ${bookingData.bookerName}
+
+สถานะ: รอการอนุมัติจากแอดมิน
+คุณจะได้รับการแจ้งเตือนเมื่อมีการอนุมัติ
+
+---
+School of Entrepreneurship SPU
+      `.trim();
+    } else if (type === 'approved') {
+      message = `
+✅ จองห้องสำเร็จ! (อนุมัติอัตโนมัติ)
+
+📍 ห้อง: ${roomName}
+📅 วันที่: ${formatThaiDate(bookingData.date)}
+⏰ เวลา: ${bookingData.startTime} - ${bookingData.endTime}
+👤 ผู้จอง: ${bookingData.bookerName}
+
+การจองของคุณได้รับการอนุมัติแล้ว!
+คุณจะได้รับ Google Calendar Event
+
+---
+School of Entrepreneurship SPU
+By Arsenal 🎯
+      `.trim();
+    }
+    
+    sendLineMessage(message);
+    
+  } catch (error) {
+    Logger.log('Error sending LINE notification to user: ' + error);
+  }
+}
+
+function sendLineApprovalNotification(bookingInfo) {
+  try {
+    const token = CONFIG.LINE_CHANNEL_ACCESS_TOKEN;
+    
+    if (token === 'YOUR_LINE_CHANNEL_ACCESS_TOKEN') {
+      return;
+    }
+    
+    const message = `
+✅ การจองของคุณได้รับการอนุมัติแล้ว!
+
+📍 ห้อง: ${bookingInfo.roomName}
+📅 วันที่: ${formatThaiDate(bookingInfo.date)}
+⏰ เวลา: ${bookingInfo.startTime} - ${bookingInfo.endTime}
+👤 ผู้จอง: ${bookingInfo.bookerName}
+
+อนุมัติโดย: ${bookingInfo.approvedBy}
+
+คุณจะได้รับ Google Calendar Event
+กรุณามาถึงก่อนเวลา 5 นาที
+
+---
+School of Entrepreneurship SPU
+By Arsenal 🎯
+    `.trim();
+    
+    sendLineMessage(message);
+    
+  } catch (error) {
+    Logger.log('Error sending LINE approval notification: ' + error);
+  }
+}
+
+function sendLineRejectionNotification(bookingInfo) {
+  try {
+    const token = CONFIG.LINE_CHANNEL_ACCESS_TOKEN;
+    
+    if (token === 'YOUR_LINE_CHANNEL_ACCESS_TOKEN') {
+      return;
+    }
+    
+    const message = `
+❌ การจองของคุณถูกปฏิเสธ
+
+📍 ห้อง: ${bookingInfo.roomName}
+📅 วันที่: ${formatThaiDate(bookingInfo.date)}
+⏰ เวลา: ${bookingInfo.startTime} - ${bookingInfo.endTime}
+👤 ผู้จอง: ${bookingInfo.bookerName}
+
+เหตุผล: ${bookingInfo.reason || 'ไม่ระบุ'}
+
+คุณสามารถจองใหม่ในช่วงเวลาอื่นได้
+
+---
+School of Entrepreneurship SPU
+    `.trim();
+    
+    sendLineMessage(message);
+    
+  } catch (error) {
+    Logger.log('Error sending LINE rejection notification: ' + error);
   }
 }
 
@@ -341,30 +766,36 @@ function sendLineCancellationNotification(bookingInfo) {
 School of Entrepreneurship SPU
     `.trim();
     
-    const url = 'https://api.line.me/v2/bot/message/broadcast';
-    
-    const payload = {
-      messages: [{
-        type: 'text',
-        text: message
-      }]
-    };
-    
-    const options = {
-      method: 'post',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + token
-      },
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    };
-    
-    UrlFetchApp.fetch(url, options);
+    sendLineMessage(message);
     
   } catch (error) {
     Logger.log('Error sending LINE cancellation: ' + error);
   }
+}
+
+function sendLineMessage(message) {
+  const token = CONFIG.LINE_CHANNEL_ACCESS_TOKEN;
+  const url = 'https://api.line.me/v2/bot/message/broadcast';
+  
+  const payload = {
+    messages: [{
+      type: 'text',
+      text: message
+    }]
+  };
+  
+  const options = {
+    method: 'post',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + token
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+  
+  const response = UrlFetchApp.fetch(url, options);
+  Logger.log('LINE notification sent: ' + response.getContentText());
 }
 
 // ========================================
@@ -390,7 +821,7 @@ function getUserBookings(userEmail) {
   today.setHours(0, 0, 0, 0);
   
   for (let i = 1; i < data.length; i++) {
-    if (data[i][7] === userEmail) {
+    if (data[i][7] === userEmail && data[i][8] !== BOOKING_STATUS.CANCELLED) {
       const bookingDate = new Date(data[i][3]);
       
       // แสดงเฉพาะการจองในอนาคตและวันนี้
@@ -403,7 +834,10 @@ function getUserBookings(userEmail) {
           startTime: data[i][4],
           endTime: data[i][5],
           bookerName: data[i][6],
-          bookerEmail: data[i][7]
+          bookerEmail: data[i][7],
+          status: data[i][8],
+          approvedBy: data[i][9],
+          approvedAt: data[i][10]
         });
       }
     }
@@ -413,19 +847,6 @@ function getUserBookings(userEmail) {
   bookings.sort((a, b) => {
     const dateCompare = new Date(a.date) - new Date(b.date);
     if (dateCompare !== 0) return dateCompare;
-    return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
-  });
-  
-  return bookings;
-}
-
-function getAllBookingsForDate(date) {
-  const bookings = getBookings(date);
-  
-  // เรียงตามห้องและเวลา
-  bookings.sort((a, b) => {
-    const roomCompare = a.roomId - b.roomId;
-    if (roomCompare !== 0) return roomCompare;
     return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
   });
   
@@ -464,9 +885,8 @@ function handleLineMessage(event) {
   let replyMessage = '';
   
   if (userMessage.includes('ห้องว่าง') || userMessage.includes('ว่าง')) {
-    // ตรวจสอบห้องว่าง
     const today = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd');
-    const bookings = getBookings(today);
+    const bookings = getBookings(today, BOOKING_STATUS.APPROVED);
     
     replyMessage = `📊 สถานะห้องวันนี้ (${formatThaiDate(today)})\n\n`;
     
@@ -487,37 +907,42 @@ function handleLineMessage(event) {
       replyMessage += '\n';
     });
     
+    // แสดงจำนวนรออนุมัติ
+    const pending = getPendingBookings().length;
+    if (pending > 0) {
+      replyMessage += `⏳ รออนุมัติ: ${pending} รายการ\n\n`;
+    }
+    
     replyMessage += '\n📲 จองเลย: [ใส่ URL ของ WebApp]';
     
   } else if (userMessage.includes('วิธีจอง') || userMessage.includes('จองยังไง')) {
     replyMessage = `
 📝 วิธีการจองห้อง:
 
-1. เปิดระบบจอง: [ใส่ URL ของ WebApp]
+1. เปิดระบบจอง: [ใส่ URL]
 2. เลือกห้องที่ต้องการ
 3. เลือกวันที่
 4. เลือกเวลาเริ่มต้นและสิ้นสุด
 5. กรอกชื่อและอีเมล
-6. กดยืนยันการจอง ✅
+6. กดยืนยันการจอง
 
-ระบบจะแจ้งเตือนทาง LINE และส่ง Google Calendar Event ให้อัตโนมัติ!
+${CONFIG.REQUIRE_APPROVAL ? '⏳ การจองจะต้องรอการอนุมัติจากแอดมิน\n(การจองสั้นๆ จะอนุมัติอัตโนมัติ)' : '✅ การจองจะได้รับการอนุมัติทันที'}
 
 ⏰ เวลาทำการ: 09:00-18:30 น.
-📅 จองได้ล่วงหน้า
     `.trim();
     
   } else {
     replyMessage = `
 สวัสดีค่ะ! 👋
 
-ฉันคือระบบจองห้อง
-School of Entrepreneurship SPU
+ระบบจองห้อง SPU
+School of Entrepreneurship
 
-คำสั่งที่ใช้ได้:
-💡 "ห้องว่าง" - ดูสถานะห้องวันนี้
-💡 "วิธีจอง" - คู่มือการจองห้อง
+คำสั่ง:
+💡 "ห้องว่าง" - ดูสถานะห้อง
+💡 "วิธีจอง" - คู่มือการจอง
 
-📲 จองเลย: [ใส่ URL ของ WebApp]
+📲 จองเลย: [URL]
 
 By Arsenal 🎯
     `.trim();
@@ -554,27 +979,4 @@ function replyToLine(replyToken, message) {
   };
   
   UrlFetchApp.fetch(url, options);
-}
-
-// ========================================
-// TEST FUNCTIONS
-// ========================================
-
-function testCreateBooking() {
-  const testData = {
-    roomId: 1,
-    date: '2024-10-15',
-    startTime: '10:00',
-    endTime: '11:00',
-    bookerName: 'Test User',
-    bookerEmail: 'test@example.com'
-  };
-  
-  const result = createBooking(testData);
-  Logger.log(result);
-}
-
-function testGetBookings() {
-  const bookings = getBookings('2024-10-15');
-  Logger.log(bookings);
 }
