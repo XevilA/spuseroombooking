@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบจองห้องประชุม - School of Entrepreneurship SPU</title>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #dc143c 0%, #8b0000 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    /* Header */
+    .header {
+      background: white;
+      border-radius: 15px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      margin-bottom: 30px;
+      text-align: center;
+      animation: fadeInDown 0.6s;
+    }
+    
+    @keyframes fadeInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .header h1 {
+      color: #dc143c;
+      font-size: 2.5em;
+      margin-bottom: 10px;
+      font-weight: 700;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    .header .subtitle {
+      color: #666;
+      font-size: 1.1em;
+      margin-bottom: 5px;
+    }
+    
+    .header .brand {
+      color: #999;
+      font-size: 0.9em;
+      font-style: italic;
+    }
+    
+    /* Main Content */
+    .main-content {
+      background: white;
+      border-radius: 15px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      animation: fadeInUp 0.6s;
+    }
+    
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 30px;
+      border-bottom: 3px solid #f0f0f0;
+      flex-wrap: wrap;
+    }
+    
+    .tab {
+      padding: 15px 30px;
+      background: #f5f5f5;
+      border: none;
+      border-radius: 10px 10px 0 0;
+      cursor: pointer;
+      font-size: 1.1em;
+      font-weight: 600;
+      color: #666;
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .tab::before {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 3px;
+      background: #dc143c;
+      transform: scaleX(0);
+      transition: transform 0.3s;
+    }
+    
+    .tab:hover {
+      background: #ffe4e4;
+      color: #dc143c;
+    }
+    
+    .tab:hover::before {
+      transform: scaleX(1);
+    }
+    
+    .tab.active {
+      background: #dc143c;
+      color: white;
+      transform: translateY(-3px);
+    }
+    
+    .tab.active::before {
+      transform: scaleX(1);
+      background: white;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 0.5s;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Form Group */
+    .form-group {
+      margin-bottom: 25px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      color: #333;
+      font-weight: 600;
+      font-size: 1.05em;
+    }
+    
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      padding: 14px 18px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 1em;
+      transition: all 0.3s;
+      background: white;
+    }
+    
+    .form-group input:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #dc143c;
+      box-shadow: 0 0 0 4px rgba(220, 20, 60, 0.1);
+      transform: translateY(-2px);
+    }
+    
+    .form-group select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23dc143c' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 15px center;
+      padding-right: 40px;
+    }
+    
+    /* Time Selection Grid */
+    .time-selection-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    
+    @media (max-width: 768px) {
+      .time-selection-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    /* Room Selection */
+    .room-selection {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-bottom: 25px;
+    }
+    
+    .room-card {
+      border: 3px solid #e0e0e0;
+      border-radius: 15px;
+      padding: 25px;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-align: center;
+      background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .room-card::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(220, 20, 60, 0.1) 0%, transparent 70%);
+      transform: scale(0);
+      transition: transform 0.5s;
+    }
+    
+    .room-card:hover::before {
+      transform: scale(1);
+    }
+    
+    .room-card:hover {
+      transform: translateY(-8px) scale(1.02);
+      box-shadow: 0 12px 25px rgba(220, 20, 60, 0.2);
+      border-color: #dc143c;
+    }
+    
+    .room-card.selected {
+      border-color: #dc143c;
+      background: linear-gradient(135deg, #dc143c 0%, #c41e3a 100%);
+      color: white;
+      box-shadow: 0 8px 20px rgba(220, 20, 60, 0.4);
+    }
+    
+    .room-card.selected::before {
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, transparent 70%);
+      transform: scale(1);
+    }
+    
+    .room-card .room-icon {
+      font-size: 3.5em;
+      margin-bottom: 15px;
+      display: block;
+      animation: bounce 2s infinite;
+    }
+    
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    
+    .room-card:hover .room-icon {
+      animation: bounce 0.6s infinite;
+    }
+    
+    .room-card .room-name {
+      font-size: 1.15em;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+    
+    /* Button */
+    .btn {
+      padding: 16px 40px;
+      background: linear-gradient(135deg, #dc143c 0%, #8b0000 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 1.15em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 15px rgba(220, 20, 60, 0.3);
+      width: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .btn::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      transform: translate(-50%, -50%);
+      transition: width 0.6s, height 0.6s;
+    }
+    
+    .btn:hover::before {
+      width: 300px;
+      height: 300px;
+    }
+    
+    .btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 25px rgba(220, 20, 60, 0.5);
+    }
+    
+    .btn:active {
+      transform: translateY(0);
+    }
+    
+    .btn:disabled {
+      background: linear-gradient(135deg, #ccc 0%, #999 100%);
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+    
+    .btn span {
+      position: relative;
+      z-index: 1;
+    }
+    
+    /* Bookings List */
+    .bookings-list {
+      display: grid;
+      gap: 20px;
+    }
+    
+    .booking-card {
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 25px;
+      background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .booking-card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      width: 5px;
+      background: linear-gradient(180deg, #dc143c 0%, #8b0000 100%);
+    }
+    
+    .booking-card:hover {
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+      transform: translateX(5px);
+    }
+    
+    .booking-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #f0f0f0;
+    }
+    
+    .booking-room {
+      font-size: 1.3em;
+      font-weight: 700;
+      color: #dc143c;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .booking-info {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 15px;
+    }
+    
+    .booking-detail {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #666;
+      font-size: 1em;
+      padding: 8px 12px;
+      background: #f9f9f9;
+      border-radius: 8px;
+    }
+    
+    .booking-detail strong {
+      color: #333;
+    }
+    
+    .btn-cancel {
+      padding: 10px 24px;
+      background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s;
+      box-shadow: 0 3px 10px rgba(255, 68, 68, 0.3);
+    }
+    
+    .btn-cancel:hover {
+      background: linear-gradient(135deg, #cc0000 0%, #990000 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(255, 68, 68, 0.4);
+    }
+    
+    /* Alert */
+    .alert {
+      padding: 18px 24px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-weight: 600;
+      animation: slideDown 0.5s;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+    }
+    
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .alert-success {
+      background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+      color: #155724;
+      border: 2px solid #c3e6cb;
+    }
+    
+    .alert-error {
+      background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+      color: #721c24;
+      border: 2px solid #f5c6cb;
+    }
+    
+    .alert-info {
+      background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+      color: #0c5460;
+      border: 2px solid #bee5eb;
+    }
+    
+    /* Loading */
+    .loading {
+      text-align: center;
+      padding: 50px;
+      color: #666;
+    }
+    
+    .spinner {
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid #dc143c;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* Info Box */
+    .info-box {
+      background: linear-gradient(135deg, #fff0f0 0%, #ffe4e4 100%);
+      border: 2px solid #dc143c;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 25px;
+      display: flex;
+      align-items: start;
+      gap: 15px;
+    }
+    
+    .info-box-icon {
+      font-size: 2em;
+      flex-shrink: 0;
+    }
+    
+    .info-box-content h3 {
+      color: #dc143c;
+      margin-bottom: 8px;
+      font-size: 1.1em;
+    }
+    
+    .info-box-content p {
+      color: #666;
+      line-height: 1.6;
+    }
+    
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #999;
+    }
+    
+    .empty-state-icon {
+      font-size: 4em;
+      margin-bottom: 20px;
+      opacity: 0.3;
+    }
+    
+    .empty-state-text {
+      font-size: 1.2em;
+      margin-bottom: 10px;
+    }
+    
+    /* Footer */
+    .footer {
+      text-align: center;
+      color: white;
+      margin-top: 40px;
+      padding: 25px;
+      font-size: 0.95em;
+    }
+    
+    .footer a {
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+    
+    .footer a:hover {
+      text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      .header h1 {
+        font-size: 1.8em;
+      }
+      
+      .tabs {
+        flex-direction: column;
+      }
+      
+      .tab {
+        width: 100%;
+      }
+      
+      .booking-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+      }
+      
+      .booking-info {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    /* Smooth Scroll */
+    html {
+      scroll-behavior: smooth;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>🏫 ระบบจองห้องประชุม</h1>
+      <div class="subtitle">School of Entrepreneurship SPU</div>
+      <div class="brand">By อาร์เซนอล 🎯</div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab('booking')">📅 จองห้อง</button>
+        <button class="tab" onclick="switchTab('mybookings')">📋 การจองของฉัน</button>
+        <button class="tab" onclick="switchTab('allbookings')">📊 ตารางการจอง</button>
+      </div>
+      
+      <!-- Booking Tab -->
+      <div id="booking-tab" class="tab-content active">
+        <div id="booking-alert"></div>
+        
+        <div class="info-box">
+          <div class="info-box-icon">ℹ️</div>
+          <div class="info-box-content">
+            <h3>วิธีการจองห้อง</h3>
+            <p>เลือกห้อง → เลือกวันที่ → เลือกช่วงเวลา → กรอกข้อมูล → ยืนยันการจอง<br>
+            <strong>เวลาทำการ:</strong> จันทร์-ศุกร์ 09:00-18:30 น. (รอบละ 30 นาที)</p>
+          </div>
+        </div>
+        
+        <!-- Room Selection -->
+        <div class="form-group">
+          <label>🏢 เลือกห้องประชุม:</label>
+          <div class="room-selection" id="room-selection"></div>
+        </div>
+        
+        <!-- Date Selection -->
+        <div class="form-group">
+          <label>📅 เลือกวันที่:</label>
+          <input type="date" id="booking-date">
+        </div>
+        
+        <!-- Time Selection with Dropdowns -->
+        <div class="form-group">
+          <label>⏰ เลือกช่วงเวลา:</label>
+          <div class="time-selection-grid">
+            <div>
+              <label for="start-time" style="font-weight: normal; font-size: 0.95em; color: #666; margin-bottom: 8px;">เวลาเริ่มต้น</label>
+              <select id="start-time" onchange="updateEndTimeOptions()">
+                <option value="">-- เลือกเวลาเริ่มต้น --</option>
+              </select>
+            </div>
+            <div>
+              <label for="end-time" style="font-weight: normal; font-size: 0.95em; color: #666; margin-bottom: 8px;">เวลาสิ้นสุด</label>
+              <select id="end-time">
+                <option value="">-- เลือกเวลาสิ้นสุด --</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        
+        <!-- User Information -->
+        <div class="form-group">
+          <label>👤 ชื่อ-นามสกุล:</label>
+          <input type="text" id="booker-name" placeholder="กรอกชื่อ-นามสกุลของคุณ">
+        </div>
+        
+        <div class="form-group">
+          <label>📧 อีเมล:</label>
+          <input type="email" id="booker-email" placeholder="example@spu.ac.th">
+        </div>
+        
+        <button class="btn" onclick="submitBooking()">
+          <span>✅ ยืนยันการจอง</span>
+        </button>
+      </div>
+      
+      <!-- My Bookings Tab -->
+      <div id="mybookings-tab" class="tab-content">
+        <div id="mybookings-alert"></div>
+        
+        <div class="info-box">
+          <div class="info-box-icon">📋</div>
+          <div class="info-box-content">
+            <h3>การจองของคุณ</h3>
+            <p>ดูรายการจองที่คุณได้ทำไว้ และสามารถยกเลิกการจองได้ที่นี่</p>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label>📧 กรอกอีเมลของคุณ:</label>
+          <input type="email" id="my-email" placeholder="example@spu.ac.th">
+        </div>
+        
+        <button class="btn" onclick="loadMyBookings()">
+          <span>🔍 ค้นหาการจองของฉัน</span>
+        </button>
+        
+        <div id="my-bookings-list" style="margin-top: 30px;"></div>
+      </div>
+      
+      <!-- All Bookings Tab -->
+      <div id="allbookings-tab" class="tab-content">
+        <div class="info-box">
+          <div class="info-box-icon">📊</div>
+          <div class="info-box-content">
+            <h3>ตารางการจองทั้งหมด</h3>
+            <p>ดูรายการจองทั้งหมดในแต่ละวัน เพื่อวางแผนการจองของคุณ</p>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label>📅 เลือกวันที่:</label>
+          <input type="date" id="view-date" onchange="loadAllBookings()">
+        </div>
+        
+        <div id="all-bookings-list"></div>
+      </div>
+    </div>
+    
+    <!-- Footer -->
+    <div class="footer">
+      <p>© 2024 School of Entrepreneurship SPU</p>
+      <p>Powered by <a href="https://www.arsenal.com" target="_blank">Arsenal</a> 🎯</p>
+      <p>⏰ เวลาทำการ: จันทร์-ศุกร์ 09:00-18:30 น.</p>
+    </div>
+  </div>
+  
+  <script>
+    let roomsData = [];
+    let timeSlotsData = [];
+    let selectedRoomId = null;
+    let existingBookings = [];
+    
+    // Initialize
+    window.onload = function() {
+      loadRoomsAndSlots();
+      setDefaultDate();
+    };
+    
+    function setDefaultDate() {
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      
+      document.getElementById('booking-date').value = todayStr;
+      document.getElementById('booking-date').min = todayStr;
+      document.getElementById('view-date').value = todayStr;
+      document.getElementById('view-date').min = todayStr;
+    }
+    
+    // Load rooms and time slots
+    function loadRoomsAndSlots() {
+      google.script.run
+        .withSuccessHandler(function(data) {
+          roomsData = data.rooms;
+          timeSlotsData = data.timeSlots;
+          renderRooms();
+          populateTimeDropdowns();
+        })
+        .withFailureHandler(showError)
+        .getRoomsAndSlots();
+    }
+    
+    // Render rooms
+    function renderRooms() {
+      const container = document.getElementById('room-selection');
+      container.innerHTML = '';
+      
+      roomsData.forEach((room) => {
+        const roomCard = document.createElement('div');
+        roomCard.className = 'room-card';
+        roomCard.onclick = () => selectRoom(room.id);
+        
+        roomCard.innerHTML = `
+          <div class="room-icon">${room.icon}</div>
+          <div class="room-name">${room.name}</div>
+        `;
+        
+        container.appendChild(roomCard);
+      });
+    }
+    
+    // Select room
+    function selectRoom(roomId) {
+      selectedRoomId = roomId;
+      
+      document.querySelectorAll('.room-card').forEach((card, index) => {
+        if (roomsData[index].id === roomId) {
+          card.classList.add('selected');
+        } else {
+          card.classList.remove('selected');
+        }
+      });
+      
+      checkAvailability();
+    }
+    
+    // Populate time dropdowns
+    function populateTimeDropdowns() {
+      const startSelect = document.getElementById('start-time');
+      const endSelect = document.getElementById('end-time');
+      
+      startSelect.innerHTML = '<option value="">-- เลือกเวลาเริ่มต้น --</option>';
+      
+      timeSlotsData.forEach(time => {
+        const option = document.createElement('option');
+        option.value = time;
+        option.textContent = time;
+        startSelect.appendChild(option);
+      });
+    }
+    
+    // Update end time options based on start time
+    function updateEndTimeOptions() {
+      const startTime = document.getElementById('start-time').value;
+      const endSelect = document.getElementById('end-time');
+      
+      endSelect.innerHTML = '<option value="">-- เลือกเวลาสิ้นสุด --</option>';
+      
+      if (!startTime) return;
+      
+      const startIndex = timeSlotsData.indexOf(startTime);
+      
+      // End time must be at least 30 minutes after start time
+      for (let i = startIndex + 1; i < timeSlotsData.length; i++) {
+        const option = document.createElement('option');
+        option.value = timeSlotsData[i];
+        option.textContent = timeSlotsData[i];
+        endSelect.appendChild(option);
+      }
+      
+      // Add the final end time (18:30)
+      const finalOption = document.createElement('option');
+      finalOption.value = '18:30';
+      finalOption.textContent = '18:30';
+      endSelect.appendChild(finalOption);
+      
+      checkAvailability();
+    }
+    
+    // Check availability
+    function checkAvailability() {
+      const date = document.getElementById('booking-date').value;
+      const startTime = document.getElementById('start-time').value;
+      const endTime = document.getElementById('end-time').value;
+      
+      if (!selectedRoomId || !date || !startTime || !endTime) {
+        return;
+      }
+      
+      google.script.run
+        .withSuccessHandler(function(bookings) {
+          existingBookings = bookings;
+          validateTimeSlot();
+        })
+        .withFailureHandler(showError)
+        .getBookings(date);
+    }
+    
+    // Validate time slot
+    function validateTimeSlot() {
+      const startTime = document.getElementById('start-time').value;
+      const endTime = document.getElementById('end-time').value;
+      
+      if (!startTime || !endTime) return;
+      
+      const conflict = existingBookings.some(b => {
+        if (b.roomId !== selectedRoomId) return false;
+        
+        const newStart = timeToMinutes(startTime);
+        const newEnd = timeToMinutes(endTime);
+        const existingStart = timeToMinutes(b.startTime);
+        const existingEnd = timeToMinutes(b.endTime);
+        
+        return (newStart < existingEnd && newEnd > existingStart);
+      });
+      
+      if (conflict) {
+        showBookingAlert('⚠️ ช่วงเวลานี้มีการจองแล้ว กรุณาเลือกช่วงเวลาอื่น', 'error');
+      }
+    }
+    
+    function timeToMinutes(timeStr) {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return hours * 60 + minutes;
+    }
+    
+    // Submit booking
+    function submitBooking() {
+      const date = document.getElementById('booking-date').value;
+      const startTime = document.getElementById('start-time').value;
+      const endTime = document.getElementById('end-time').value;
+      const name = document.getElementById('booker-name').value.trim();
+      const email = document.getElementById('booker-email').value.trim();
+      
+      // Validation
+      if (!selectedRoomId) {
+        showBookingAlert('❌ กรุณาเลือกห้อง', 'error');
+        return;
+      }
+      
+      if (!date) {
+        showBookingAlert('❌ กรุณาเลือกวันที่', 'error');
+        return;
+      }
+      
+      if (!startTime) {
+        showBookingAlert('❌ กรุณาเลือกเวลาเริ่มต้น', 'error');
+        return;
+      }
+      
+      if (!endTime) {
+        showBookingAlert('❌ กรุณาเลือกเวลาสิ้นสุด', 'error');
+        return;
+      }
+      
+      if (timeToMinutes(endTime) <= timeToMinutes(startTime)) {
+        showBookingAlert('❌ เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น', 'error');
+        return;
+      }
+      
+      if (!name) {
+        showBookingAlert('❌ กรุณากรอกชื่อ-นามสกุล', 'error');
+        return;
+      }
+      
+      if (!email || !isValidEmail(email)) {
+        showBookingAlert('❌ กรุณากรอกอีเมลที่ถูกต้อง', 'error');
+        return;
+      }
+      
+      // Disable button
+      const btn = event.target;
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳ กำลังจอง...</span>';
+      
+      const bookingData = {
+        roomId: selectedRoomId,
+        date: date,
+        startTime: startTime,
+        endTime: endTime,
+        bookerName: name,
+        bookerEmail: email
+      };
+      
+      google.script.run
+        .withSuccessHandler(function(result) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>✅ ยืนยันการจอง</span>';
+          
+          if (result.success) {
+            showBookingAlert('🎉 ' + result.message + ' คุณจะได้รับการแจ้งเตือนทาง Email และ LINE!', 'success');
+            resetBookingForm();
+          } else {
+            showBookingAlert('❌ ' + result.message, 'error');
+          }
+        })
+        .withFailureHandler(function(error) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>✅ ยืนยันการจอง</span>';
+          showError(error);
+        })
+        .createBooking(bookingData);
+    }
+    
+    // Reset booking form
+    function resetBookingForm() {
+      selectedRoomId = null;
+      document.getElementById('start-time').value = '';
+      document.getElementById('end-time').value = '';
+      document.getElementById('booker-name').value = '';
+      document.getElementById('booker-email').value = '';
+      
+      document.querySelectorAll('.room-card').forEach(card => {
+        card.classList.remove('selected');
+      });
+      
+      existingBookings = [];
+    }
+    
+    // Load my bookings
+    function loadMyBookings() {
+      const email = document.getElementById('my-email').value.trim();
+      
+      if (!email || !isValidEmail(email)) {
+        showMyBookingsAlert('❌ กรุณากรอกอีเมลที่ถูกต้อง', 'error');
+        return;
+      }
+      
+      const container = document.getElementById('my-bookings-list');
+      container.innerHTML = '<div class="loading"><div class="spinner"></div><p>กำลังค้นหาการจองของคุณ...</p></div>';
+      
+      google.script.run
+        .withSuccessHandler(function(bookings) {
+          renderMyBookings(bookings, email);
+        })
+        .withFailureHandler(showError)
+        .getUserBookings(email);
+    }
+    
+    // Render my bookings
+    function renderMyBookings(bookings, email) {
+      const container = document.getElementById('my-bookings-list');
+      
+      if (bookings.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">📭</div>
+            <div class="empty-state-text">ไม่พบการจองของคุณ</div>
+            <p style="color: #999;">คุณยังไม่มีการจองห้องประชุม</p>
+          </div>
+        `;
+        return;
+      }
+      
+      container.innerHTML = `
+        <div style="margin-bottom: 20px;">
+          <h3 style="color: #dc143c; font-size: 1.3em;">
+            📋 การจองของคุณ 
+            <span style="background: #dc143c; color: white; padding: 5px 15px; border-radius: 20px; font-size: 0.8em; margin-left: 10px;">
+              ${bookings.length} รายการ
+            </span>
+          </h3>
+        </div>
+      `;
+      
+      const listDiv = document.createElement('div');
+      listDiv.className = 'bookings-list';
+      
+      bookings.forEach(booking => {
+        const card = createBookingCard(booking, email, true);
+        listDiv.appendChild(card);
+      });
+      
+      container.appendChild(listDiv);
+    }
+    
+    // Load all bookings
+    function loadAllBookings() {
+      const date = document.getElementById('view-date').value;
+      
+      if (!date) {
+        return;
+      }
+      
+      const container = document.getElementById('all-bookings-list');
+      container.innerHTML = '<div class="loading"><div class="spinner"></div><p>กำลังโหลดตารางการจอง...</p></div>';
+      
+      google.script.run
+        .withSuccessHandler(function(bookings) {
+          renderAllBookings(bookings, date);
+        })
+        .withFailureHandler(showError)
+        .getBookings(date);
+    }
+    
+    // Render all bookings
+    function renderAllBookings(bookings, date) {
+      const container = document.getElementById('all-bookings-list');
+      
+      if (bookings.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">📅</div>
+            <div class="empty-state-text">ยังไม่มีการจองในวันนี้</div>
+            <p style="color: #999;">ห้องทุกห้องยังว่างอยู่</p>
+          </div>
+        `;
+        return;
+      }
+      
+      container.innerHTML = `
+        <div style="margin-bottom: 20px;">
+          <h3 style="color: #dc143c; font-size: 1.3em;">
+            📊 ตารางการจอง - ${formatDate(date)}
+            <span style="background: #dc143c; color: white; padding: 5px 15px; border-radius: 20px; font-size: 0.8em; margin-left: 10px;">
+              ${bookings.length} รายการ
+            </span>
+          </h3>
+        </div>
+      `;
+      
+      const listDiv = document.createElement('div');
+      listDiv.className = 'bookings-list';
+      
+      bookings.forEach(booking => {
+        const card = createBookingCard(booking, null, false);
+        listDiv.appendChild(card);
+      });
+      
+      container.appendChild(listDiv);
+    }
+    
+    // Create booking card
+    function createBookingCard(booking, userEmail, showCancel) {
+      const card = document.createElement('div');
+      card.className = 'booking-card';
+      
+      const room = roomsData.find(r => r.id === booking.roomId);
+      const roomIcon = room ? room.icon : '🏢';
+      
+      card.innerHTML = `
+        <div class="booking-header">
+          <div class="booking-room">${roomIcon} ${booking.roomName}</div>
+          ${showCancel ? `<button class="btn-cancel" onclick="cancelBooking('${booking.id}', '${userEmail}')">❌ ยกเลิกการจอง</button>` : ''}
+        </div>
+        <div class="booking-info">
+          <div class="booking-detail">📅 ${formatDate(booking.date)}</div>
+          <div class="booking-detail">⏰ ${booking.startTime} - ${booking.endTime}</div>
+          <div class="booking-detail">👤 ${booking.bookerName}</div>
+          <div class="booking-detail">📧 ${booking.bookerEmail}</div>
+        </div>
+      `;
+      
+      return card;
+    }
+    
+    // Cancel booking
+    function cancelBooking(bookingId, userEmail) {
+      if (!confirm('คุณต้องการยกเลิกการจองนี้หรือไม่?\n\nการยกเลิกจะส่งการแจ้งเตือนไปยังระบบ')) {
+        return;
+      }
+      
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.success) {
+            showMyBookingsAlert('✅ ' + result.message, 'success');
+            loadMyBookings();
+          } else {
+            showMyBookingsAlert('❌ ' + result.message, 'error');
+          }
+        })
+        .withFailureHandler(showError)
+        .cancelBooking(bookingId, userEmail);
+    }
+    
+    // Switch tabs
+    function switchTab(tabName) {
+      // Update tab buttons
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      event.target.classList.add('active');
+      
+      // Update tab content
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+      });
+      document.getElementById(tabName + '-tab').classList.add('active');
+      
+      // Load data if needed
+      if (tabName === 'allbookings') {
+        loadAllBookings();
+      }
+      
+      // Clear alerts
+      document.getElementById('booking-alert').innerHTML = '';
+      document.getElementById('mybookings-alert').innerHTML = '';
+    }
+    
+    // Utility functions
+    function isValidEmail(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+    
+    function formatDate(dateStr) {
+      const [year, month, day] = dateStr.split('-');
+      const thaiMonths = [
+        'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+        'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+      ];
+      
+      return `${day} ${thaiMonths[parseInt(month) - 1]} ${parseInt(year) + 543}`;
+    }
+    
+    function showBookingAlert(message, type) {
+      const alertDiv = document.getElementById('booking-alert');
+      const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+      alertDiv.className = `alert alert-${type}`;
+      alertDiv.innerHTML = `<span style="font-size: 1.5em;">${icon}</span> <span>${message}</span>`;
+      alertDiv.style.display = 'flex';
+      
+      setTimeout(() => {
+        alertDiv.style.display = 'none';
+      }, 5000);
+      
+      // Scroll to alert
+      alertDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    
+    function showMyBookingsAlert(message, type) {
+      const alertDiv = document.getElementById('mybookings-alert');
+      const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+      alertDiv.className = `alert alert-${type}`;
+      alertDiv.innerHTML = `<span style="font-size: 1.5em;">${icon}</span> <span>${message}</span>`;
+      alertDiv.style.display = 'flex';
+      
+      setTimeout(() => {
+        alertDiv.style.display = 'none';
+      }, 5000);
+      
+      // Scroll to alert
+      alertDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    
+    function showError(error) {
+      alert('❌ เกิดข้อผิดพลาด: ' + error.message);
+      console.error(error);
+    }
+    
+    // Event listeners
+    document.getElementById('booking-date').addEventListener('change', checkAvailability);
+    document.getElementById('end-time').addEventListener('change', checkAvailability);
+  </script>
+</body>
+</html>
